@@ -10,43 +10,91 @@ public with sharing class TripService {
      * Règle métier : GGT-02
      */
     public static void createTripsFromOpportunities(List<Opportunity> newOpportunities, Map<Id, Opportunity> oldMap) {
-        // On prépare une liste vide pour stocker les nouveaux voyages qu'on va créer.
         List<Trip__c> tripsToInsert = new List<Trip__c>();
         
-        // On boucle sur chaque opportunité reçue (celle qui vient d'être modifiée/créée)
         for (Opportunity opp : newOpportunities) {
-            // On récupère l'ancienne version de cette opportunité (si elle existe)
             Opportunity oldOpp = oldMap != null ? oldMap.get(opp.Id) : null;
             
-            // On vérifie deux conditions :
-            // 1. La nouvelle étape est 'Closed Won' (Gagnée)
-            // 2. L'ancienne étape (si elle existe) N'ÉTAIT PAS 'Closed Won'
-            // Cela permet de n'exécuter ce code QUE lorsque l'opportunité PASSE à 'Closed Won'.
+            // Crée un voyage uniquement au passage à l'étape 'Closed Won'
             if (opp.StageName == 'Closed Won' && (oldOpp == null || oldOpp.StageName != 'Closed Won')) {
-                
-                // On crée un nouvel objet Voyage (Trip__c) en mémoire
                 Trip__c newTrip = new Trip__c();
                 
-                // On recopie les informations de l'Opportunité vers le Voyage
-                newTrip.Name = opp.Name; // Le nom du voyage sera le nom de l'opportunité
-                newTrip.Status__c = 'A venir'; // Statut par défaut demandé par le client
+                newTrip.Name = opp.Name;
+                newTrip.Status__c = 'A venir';
                 newTrip.Destination__c = opp.Destination__c;
                 newTrip.Start_Date__c = opp.Start_Date__c;
                 newTrip.End_Date__c = opp.End_Date__c;
                 newTrip.Number_of_Participants__c = opp.Number_of_Participants__c;
-                newTrip.Total_Cost__c = opp.Amount; // Le montant de l'opportunité devient le coût total
-                newTrip.Account__c = opp.AccountId; // On lie le voyage au même compte client
-                newTrip.Opportunity__c = opp.Id;    // On garde un lien vers l'opportunité d'origine
+                newTrip.Total_Cost__c = opp.Amount;
+                newTrip.Account__c = opp.AccountId;
+                newTrip.Opportunity__c = opp.Id;
+                newTrip.Opportunite__c = opp.Id;
                 
-                // On ajoute ce nouveau voyage à notre liste (on ne l'insère pas encore en base)
                 tripsToInsert.add(newTrip);
             }
         }
         
-        // Si on a créé au moins un voyage dans la liste...
         if (!tripsToInsert.isEmpty()) {
-            // ... on demande au DataManager de l'insérer en base de données de manière sécurisée.
             DataManager.secureInsert(tripsToInsert);
+        }
+    }
+
+    /**
+     * @description Met à jour les enregistrements de Voyage quand l'Opportunité associée (Closed Won) est modifiée.
+     */
+    public static void updateTripsFromOpportunities(List<Opportunity> updatedOpportunities, Map<Id, Opportunity> oldMap) {
+        // 1. Identifier les opportunités "Closed Won" qui ont été modifiées sur des champs clés
+        Set<Id> oppIdsToSync = new Set<Id>();
+        for (Opportunity opp : updatedOpportunities) {
+            Opportunity oldOpp = oldMap.get(opp.Id);
+            
+            // On ne synchronise que si l'opportunité est TOUJOURS "Closed Won"
+            if (opp.StageName == 'Closed Won' && oldOpp.StageName == 'Closed Won') {
+                // Vérifier si un champ clé a changé
+                if (opp.Amount != oldOpp.Amount || 
+                    opp.Destination__c != oldOpp.Destination__c || 
+                    opp.Start_Date__c != oldOpp.Start_Date__c || 
+                    opp.End_Date__c != oldOpp.End_Date__c ||
+                    opp.Number_of_Participants__c != oldOpp.Number_of_Participants__c) {
+                    oppIdsToSync.add(opp.Id);
+                }
+            }
+        }
+        
+        if (oppIdsToSync.isEmpty()) return;
+        
+        // 2. Récupérer les voyages associés à ces opportunités de manière sécurisée
+        String oppIdsStr = '(\'';
+        List<Id> oppIdsList = new List<Id>(oppIdsToSync);
+        for(Integer i=0; i<oppIdsList.size(); i++) {
+            oppIdsStr += String.escapeSingleQuotes(oppIdsList[i]);
+            if(i < oppIdsList.size() - 1) oppIdsStr += '\',\'';
+        }
+        oppIdsStr += '\')';
+        
+        String query = 'SELECT Id, Total_Cost__c, Destination__c, Start_Date__c, End_Date__c, Number_of_Participants__c, Opportunity__c ' +
+                       'FROM Trip__c WHERE Opportunity__c IN ' + oppIdsStr;
+                       
+        List<Trip__c> tripsToUpdate = (List<Trip__c>) DataManager.secureQuery(query);
+        
+        // 3. Mettre à jour les voyages avec les nouvelles valeurs de l'opportunité
+        if (!tripsToUpdate.isEmpty()) {
+            // Créer une map pour retrouver facilement l'Opportunité à partir du Voyage
+            Map<Id, Opportunity> oppMap = new Map<Id, Opportunity>(updatedOpportunities);
+            
+            for (Trip__c trip : tripsToUpdate) {
+                if (trip.Opportunity__c != null && oppMap.containsKey(trip.Opportunity__c)) {
+                    Opportunity syncedOpp = oppMap.get(trip.Opportunity__c);
+                    trip.Total_Cost__c = syncedOpp.Amount;
+                    trip.Destination__c = syncedOpp.Destination__c;
+                    trip.Start_Date__c = syncedOpp.Start_Date__c;
+                    trip.End_Date__c = syncedOpp.End_Date__c;
+                    trip.Number_of_Participants__c = syncedOpp.Number_of_Participants__c;
+                }
+            }
+            
+            // 4. Sauvegarder les modifications via le DataManager
+            DataManager.secureUpdate(tripsToUpdate);
         }
     }
     
@@ -70,10 +118,33 @@ public with sharing class TripService {
                 trip.addError('Le coût total ne peut pas être négatif.');
             }
             
-            // 3. Validation des Participants (Ne doit pas être négatif)
+    // 3. Validation des Participants (Ne doit pas être négatif)
             if (trip.Number_of_Participants__c != null && trip.Number_of_Participants__c < 0) {
                 trip.addError('Le nombre de participants ne peut pas être négatif.');
             }
         }
+    }
+
+    /**
+     * @description Updates a Trip.
+     */
+    public static void updateTrip(Trip__c trip) {
+        DataManager.secureUpdate(new List<Trip__c>{trip});
+    }
+
+    /**
+     * @description Deletes a Trip.
+     */
+    public static void deleteTrip(Id tripId) {
+        Trip__c trip = [SELECT Id FROM Trip__c WHERE Id = :tripId LIMIT 1];
+        DataManager.secureDelete(new List<Trip__c>{trip});
+    }
+
+    /**
+     * @description Retrieves Trips securely.
+     */
+    public static List<Trip__c> getTrips() {
+        String query = 'SELECT Id, Name, Status__c, Start_Date__c, End_Date__c, Destination__c FROM Trip__c LIMIT 100';
+        return (List<Trip__c>) DataManager.secureQuery(query);
     }
 }

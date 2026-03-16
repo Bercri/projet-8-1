@@ -34,6 +34,24 @@
         <modifyAllRecords>false</modifyAllRecords>
         <object>Opportunity</object>
     </objectPermissions>
+    <objectPermissions>
+        <allowCreate>true</allowCreate>
+        <allowDelete>false</allowDelete>
+        <allowEdit>true</allowEdit>
+        <allowRead>true</allowRead>
+        <viewAllRecords>false</viewAllRecords>
+        <modifyAllRecords>false</modifyAllRecords>
+        <object>Contract</object>
+    </objectPermissions>
+    <objectPermissions>
+        <allowCreate>true</allowCreate>
+        <allowDelete>false</allowDelete>
+        <allowEdit>true</allowEdit>
+        <allowRead>true</allowRead>
+        <viewAllRecords>false</viewAllRecords>
+        <modifyAllRecords>false</modifyAllRecords>
+        <object>Task</object>
+    </objectPermissions>
 
     <!-- Opportunity Fields -->
     <fieldPermissions>
@@ -99,6 +117,7 @@
         <field>Trip__c.Account__c</field>
         <readable>true</readable>
     </fieldPermissions>
+
     <fieldPermissions>
         <editable>true</editable>
         <field>Trip__c.Opportunity__c</field>

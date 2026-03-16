@@ -29,12 +29,18 @@ private class TripBatchesTest {
         User u = [SELECT Id FROM User WHERE LastName='Testing' LIMIT 1];
         
         System.runAs(u) {
+            // On crée un Compte et une Opportunité
+            Account acc = TestDataFactory.createAccount('Test Acc Batch');
+            Opportunity opp = TestDataFactory.createOpportunity('Test Opp Batch', acc.Id);
+
             // Cas 1 : Voyage à annuler (Départ dans 7 jours, < 10 participants)
             Trip__c trip = new Trip__c(
                 Status__c = 'A venir',
                 Start_Date__c = Date.today().addDays(7),
                 End_Date__c = Date.today().addDays(14),
-                Number_of_Participants__c = 5 // Moins que 10 -> Doit être annulé
+                Number_of_Participants__c = 5, // Moins que 10 -> Doit être annulé
+                Opportunite__c = opp.Id,
+                Opportunity__c = opp.Id
             );
             insert trip;
             
@@ -43,7 +49,9 @@ private class TripBatchesTest {
                 Status__c = 'A venir',
                 Start_Date__c = Date.today().addDays(7),
                 End_Date__c = Date.today().addDays(14),
-                Number_of_Participants__c = 15 // Assez de monde -> Ne pas annuler
+                Number_of_Participants__c = 15, // Assez de monde -> Ne pas annuler
+                Opportunite__c = opp.Id,
+                Opportunity__c = opp.Id
             );
             insert tripSafe;
     
@@ -71,18 +79,26 @@ private class TripBatchesTest {
          System.runAs(u) {
             Date today = Date.today();
             
+            // On crée un Compte et une Opportunité
+            Account acc = TestDataFactory.createAccount('Test Acc Updates');
+            Opportunity opp = TestDataFactory.createOpportunity('Test Opp Updates', acc.Id);
+            
             // Cas 1 : Voyage qui a commencé hier -> Doit passer "En cours"
             Trip__c tripOngoing = new Trip__c(
                 Status__c = 'A venir', // Mauvais statut initial
                 Start_Date__c = today.addDays(-1),
-                End_Date__c = today.addDays(1)
+                End_Date__c = today.addDays(1),
+                Opportunite__c = opp.Id,
+                Opportunity__c = opp.Id
             );
             
             // Cas 2 : Voyage fini hier -> Doit passer "Terminé"
             Trip__c tripDone = new Trip__c(
                 Status__c = 'En cours', // Mauvais statut initial
                 Start_Date__c = today.addDays(-5),
-                End_Date__c = today.addDays(-1)
+                End_Date__c = today.addDays(-1),
+                Opportunite__c = opp.Id,
+                Opportunity__c = opp.Id
             );
             
             insert new List<Trip__c>{tripOngoing, tripDone};
