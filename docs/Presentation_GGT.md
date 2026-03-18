@@ -183,26 +183,4 @@ Pour le code personnalisé, nous avons créé le `DataManager` :
 ### 6.4 Mode de Partage (Sharing Model)
 L'usage systématique de `with sharing` et `AccessLevel.USER_MODE` dans nos requêtes Apex garantit que les automatismes respectent les règles de partage définies par Océane.
 
----
-
-## 7. DISCUSSION (10 MINUTES Q&A)
-
-### Q1. "Comment avez-vous assuré la sécurité des données sensibles dans le système CRM ?"
-**Réponse :** "Nous avons combiné plusieurs couches de protection. D'abord, le modèle de sécurité natif (OWD, Profils, Rôles) pour restreindre l'accès global. Ensuite, nous avons implémenté le **DataManager** qui utilise `Security.stripInaccessible()` pour filtrer les données champ par champ au moment de l'exécution du code. Enfin, **Salesforce Shield** a été activé pour le chiffrement des données au repos et la surveillance en temps réel de tous les événements d'accès sensible."
-
-### Q2. "Pouvez-vous expliquer comment fonctionne l’une des requêtes Apex que vous avez développées ?"
-**Réponse :** "Prenons le batch d'annulation automatique. La requête est : `SELECT Id FROM Trip__c WHERE Start_Date__c = NEXT_N_DAYS:7 AND Number_of_Participants__c < 10`. Elle utilise l'opérateur dynamique `NEXT_N_DAYS:7`, qui est géré directement par le moteur de base de données de Salesforce pour identifier exactement les voyages partant dans une semaine, sans avoir à traiter des milliers d'enregistrements en mémoire, ce qui est très performant."
-
-### Q3. "Quels défis avez-vous rencontrés lors de la conception de la base de données et comment les avez-vous surmontés ?"
-**Réponse :** "Le défi majeur a été la synchronisation bidirectionnelle. Les données changeaient côté Opportunité alors que le voyage était déjà créé. Nous avons surmonté cela en mettant en place une architecture pilotée par le `TripService`, qui écoute les modifications sur les Opportunités "Gagnées" et reporte dynamiquement les changements (dates, participants) sur le dossier logistique `Trip__c` correspondant, évitant ainsi tout risque de désynchronisation."
-
-### Q4. "Comment avez-vous testé les fonctionnalités du CRM pour vous assurer qu’elles répondent aux besoins de l’entreprise ?"
-**Réponse :** "Nous avons utilisé des classes de tests unitaires et d'intégration robustes avec une approche par scénarios. Nous avons incarné différents profils d'utilisateurs via `System.runAs()` pour tenter de forcer des erreurs métier (comme des dates incohérentes ou des prix négatifs). Nos tests s'assurent que les triggers bloquent systématiquement ces cas limites. Nous avons atteint une couverture de plus de 90% sur l'ensemble du projet."
-
-### Q5. "Pouvez-vous donner un exemple de scénario typique illustrant l'utilisation des fonctionnalités que vous avez développées ?"
-**Réponse :** "Imaginez un commercial vendant un séminaire à L'Oréal. Une fois le contrat signé, il passe l'Opportunité à 'Closed Won'. Instantanément, le Trigger crée le Voyage logistique correspondant. Si, deux jours plus tard, le client change le nombre de participants sur l'Opportunité, le Voyage est mis à jour automatiquement par notre service de synchronisation. Enfin, si ce voyage ne se remplit pas assez, notre Batch nocturne l'annulera 7 jours avant le départ pour éviter des frais inutiles."
-
----
-
-## CONCLUSION
-Le système CRM de Global Group Travel est prêt pour le déploiement. Il apporte une automatisation fiable, une sécurité conforme aux audits et une expérience utilisateur sans couture de la vente à la logistique.
+L'usage systématique de `with sharing` et ces clauses `AccessLevel.USER_MODE` dans nos requêtes Apex garantit que les automatismes respectent les règles de partage définies par Océane.
