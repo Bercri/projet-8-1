@@ -57,36 +57,68 @@ Le système GGT repose sur une combinaison d'objets standards Salesforce (pour l
 
 ---
 
-## 4. FONCTIONNALITÉS ET PREUVES TECHNIQUES
+## 4. FONCTIONNALITÉS ESSENTIELLES ET PREUVES TECHNIQUES
 
-### 4.1 Principales Fonctionnalités Implémentées
-1. **[GGT-02] Création Automatique** : Dès qu'une opportunité passe à l'étape "Closed Won" (Gagnée), un objet `Trip__c` est instantanément créé avec toutes les informations de destination, dates et participants.
-2. **[GGT-03] Validation de l'Intégrité** : Le système bloque toute création de voyage si la date de fin est antérieure à la date de début.
-3. **[GGT-04] Nettoyage Nocturne (Batch)** : Chaque nuit, un script asynchrone annule automatiquement les voyages de plus de 7 jours qui n'ont pas atteint le quorum (10 participants).
-4. **Synchronisation Dynamique** : Si le commercial modifie les dates ou le nombre de participants sur l'Opportunité après la signature, le Voyage logistique est mis à jour en temps réel.
+### 4.1 Les Trois Piliers du CRM GGT
 
-### 4.2 Zoom sur le Code (Preuves Techniques)
+1. **Suivi des Interactions Clients (360° View)**
+   - **Objectif** : Éviter la perte d'information entre les commerciaux et garantir un relai fluide avec la logistique.
+   - **Solution** : Utilisation systématique de l'objet **Task** pour chaque appel, email ou réunion. Rien n'est laissé à la mémoire humaine ; tout est tracé dans Salesforce.
 
-#### **A. Automatisation de la Création (Service Apex)**
-C'est le "cerveau" qui transforme une vente en dossier logistique.
+2. **Gestion des Contrats (Cadrage Légal)**
+   - **Objectif** : Sécuriser les engagements avant de lancer des réservations coûteuses (vols, hôtels).
+   - **Solution** : Une opportunité ne peut être considérée comme actionnable que si elle est liée à un **Contract** actif et signé. Cela garantit une conformité totale avec le département juridique de GGT.
+
+3. **Optimisation des Ventes vers la Logistique (GGT-02)**
+   - **Objectif** : Supprimer la double saisie et les erreurs de transmission.
+   - **Solution** : Automatisation complète. Dès que l'Opportunité est gagnée, le dossier logistique `Trip__c` est auto-généré avec toutes les spécificités du voyage (Destination, Quorum, Dates).
+
+### 4.2 Exemples de Requêtes Apex (Le Moteur Dynamique)
+
+#### **A. Récupération de l'Historique des Interactions**
+Pour afficher le fil rouge du client avant un voyage :
 ```java
-public void createTripsFromOpportunities(List<Opportunity> opportunities, Map<Id, Opportunity> oldOpps) {
-    List<Trip__c> tripsToInsert = new List<Trip__c>();
-    for (Opportunity opp : opportunities) {
-        // Vérifie si l'opportunité vient de passer à 'Closed Won'
-        if (opp.StageName == 'Closed Won' && oldOpps.get(opp.Id).StageName != 'Closed Won') {
-            tripsToInsert.add(new Trip__c(
-                Account__c = opp.AccountId,
-                Opportunity__c = opp.Id,
-                Destination__c = opp.Destination__c,
-                Start_Date__c = opp.Start_Date__c,
-                End_Date__c = opp.End_Date__c,
-                Number_of_Participants__c = opp.Number_of_Participants__c
-            ));
-        }
+// Récupère les 5 dernières interactions pour un compte spécifique
+List<Task> lastInteractions = [
+    SELECT Subject, CreatedDate, Description 
+    FROM Task 
+    WHERE WhatId = :accountId 
+    WITH USER_MODE 
+    ORDER BY CreatedDate DESC 
+    LIMIT 5
+];
+```
+
+#### **B. Vérification de la Présence de Contrats Signés**
+Utilisé dans notre logique de validation avant de générer la logistique :
+```java
+// Compte le nombre de contrats actifs pour un client
+Integer activeContracts = [
+    SELECT COUNT() 
+    FROM Contract 
+    WHERE AccountId = :accountId 
+    AND Status = 'Activated' 
+    WITH USER_MODE
+];
+if (activeContracts == 0) {
+    throw new CustomException('Action impossible : Aucun contrat signé pour ce client.');
+}
+```
+
+#### **C. Automatisation de la Création (Trigger / Service)**
+```java
+// Copie intelligente des données de l'Opportunité vers le Voyage
+for (Opportunity opp : opportunities) {
+    if (opp.StageName == 'Closed Won' && oldOpps.get(opp.Id).StageName != 'Closed Won') {
+        tripsToInsert.add(new Trip__c(
+            Account__c = opp.AccountId,
+            Opportunity__c = opp.Id,
+            Destination__c = opp.Destination__c,
+            Start_Date__c = opp.Start_Date__c,
+            End_Date__c = opp.End_Date__c,
+            Number_of_Participants__c = opp.Number_of_Participants__c
+        ));
     }
-    // Appel au DataManager pour une insertion sécurisée (FLS/CRUD)
-    DataManager.doInsert(tripsToInsert);
 }
 ```
 
