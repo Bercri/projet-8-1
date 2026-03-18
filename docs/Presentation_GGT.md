@@ -162,21 +162,26 @@ Les phases de tests nous ont permis d'apporter des améliorations cruciales :
 
 ---
 
-## 6. SÉCURITÉ ET AUDIT DES DONNÉES
+## 6. SÉCURITÉ ET CONFORMITÉ DES DONNÉES
 
-### 6.1 L'approche "Zero Trust"
-Global Group Travel a fait de la sécurité sa priorité majeure. Nous avons implémenté une architecture où aucun accès n'est considéré comme acquis, même pour les processus automatisés.
+### 6.1 Architecture de Sécurité Native
+Global Group Travel utilise le modèle de sécurité en couches de Salesforce pour garantir la confidentialité :
+- **Profils et Permission Sets** : Définissent les accès aux objets (CRUD). Par exemple, le profil "Commercial" peut modifier l'Opportunité, mais seul le profil "Logistique" peut valider les réservations sur le `Trip__c`.
+- **Rôles et Hiérarchie** : Les managers (`Sales Manager`) peuvent voir les dossiers de leurs subordonnés, mais les commerciaux ne voient pas les dossiers de leurs pairs (Private OWD).
+- **Règles de Partage (Sharing Rules)** : Utilisées pour ouvrir l'accès de manière granulaire quand une collaboration transverse est nécessaire entre la Vente et la Logistique.
 
-### 6.2 Le Verrou Central : La classe `DataManager`
-Plutôt que d'éparpiller les vérifications de sécurité, nous avons créé une classe utilitaire centrale. Tout "DML" (Insert, Update, Delete) doit obligatoirement passer par elle.
-- **Vérification FLS (Field Level Security)** : Le système vérifie si le profil de l'utilisateur a le droit de voir ou modifier chaque champ spécifique.
-- **Vérification CRUD** : Le système vérifie les permissions globales sur l'objet.
+### 6.2 Protection Avancée : Salesforce Shield
+Pour répondre aux exigences d'audit les plus strictes de GGT, nous avons intégré **Salesforce Shield** :
+1. **Platform Encryption** : Chiffre les données sensibles "au repos" (at rest) dans la base de données (ex: noms des participants, détails financiers), sans impacter les fonctionnalités de recherche.
+2. **Event Monitoring** : Surveille et logue chaque interaction avec la donnée. On peut savoir en temps réel qui a consulté quel voyage, permettant de détecter toute activité suspecte ou exportation massive de données.
 
-### 6.3 Innovation Salesforce : `Security.stripInaccessible()`
-Nous utilisons la dernière méthode recommandée par Salesforce. Contrairement aux anciennes méthodes qui faisaient "planter" le code en cas d'erreur de permission, `stripInaccessible()` nettoie "à la volée" les données interdites et autorise la transaction pour le reste des champs autorisés. Cela garantit une expérience utilisateur fluide sans compromettre la sécurité.
+### 6.3 Sécurité Programmatique (Le Verrou DataManager)
+Pour le code personnalisé, nous avons créé le `DataManager` :
+- **Vérification FLS (Field Level Security)** : Chaque champ est vérifié avant toute opération.
+- **stripInaccessible()** : Nettoie "à la volée" les champs interdits pour l'utilisateur courant, empêchant toute injection de données non autorisée.
 
 ### 6.4 Mode de Partage (Sharing Model)
-Le code Apex a été écrit en utilisant explicitement le mot-clé `with sharing` et les clauses `AccessLevel.USER_MODE` dans les requêtes SOQL, garantissant que les règles de partage de l'entreprise (Océane et ses équipes) sont toujours respectées.
+L'usage systématique de `with sharing` et `AccessLevel.USER_MODE` dans nos requêtes Apex garantit que les automatismes respectent les règles de partage définies par Océane.
 
 ---
 
